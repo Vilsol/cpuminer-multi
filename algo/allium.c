@@ -1,17 +1,58 @@
 #include <memory.h>
+
+#include "sha3/sph_blake.h"
+#include "sha3/sph_groestl.h"
+#include "sha3/sph_skein.h"
+#include "sha3/sph_keccak.h"
+#include "sha3/sph_luffa.h"
+
 #include "lyra2/Lyra2.h"
 
 #include "miner.h"
 
 void allium_hash(void *state, const void *input)
 {
-    uint32_t _ALIGN(128) a_hash[8];
-    uint32_t _ALIGN(128) b_hash[8];
+    sph_blake512_context     ctx_blake;
+    sph_keccak512_context    ctx_keccak;
+    sph_skein512_context     ctx_skein;
+    sph_groestl512_context   ctx_groestl;
+    sph_luffa512_context     ctx_luffa;
 
-    blake2s_hash(a_hash, input);
-    LYRA2(b_hash, 32, a_hash, 32, a_hash, 32, 1, 8, 8);
+    uint32_t hashA[8], hashB[8];
 
-    memcpy(state, b_hash, 32);
+    sph_blake512_init(&ctx_blake);
+    sph_blake512(&ctx_blake, input, 80);
+    sph_blake512_close(&ctx_blake, hashA);
+
+    sph_keccak512_init(&ctx_keccak);
+    sph_keccak512(&ctx_keccak, hashA, 32);
+    sph_keccak512_close(&ctx_keccak, hashB);
+
+    LYRA2(hashA, 32, hashB, 32, hashB, 32, 1, 8, 8);
+
+    sph_skein512_init(&ctx_skein);
+    sph_skein512(&ctx_skein, hashA, 32);
+    sph_skein512_close(&ctx_skein, hashB);
+
+    LYRA2(hashA, 32, hashB, 32, hashB, 32, 1, 8, 8);
+
+    sph_keccak512_init(&ctx_keccak);
+    sph_keccak512(&ctx_keccak, hashA, 32);
+    sph_keccak512_close(&ctx_keccak, hashB);
+
+    LYRA2(hashA, 32, hashB, 32, hashB, 32, 1, 8, 8);
+
+    sph_luffa512_init(&ctx_luffa);
+    sph_luffa512(&ctx_luffa, hashA, 32);
+    sph_luffa512_close(&ctx_luffa, hashB);
+
+    LYRA2(hashA, 32, hashB, 32, hashB, 32, 1, 8, 8);
+
+    sph_groestl512_init(&ctx_groestl);
+    sph_groestl512(&ctx_groestl, hashA, 32);
+    sph_groestl512_close(&ctx_groestl, hashB);
+
+    memcpy(state, hashB, 32);
 }
 
 int scanhash_allium(int thr_id, struct work *work, uint32_t max_nonce, uint64_t *hashes_done)
